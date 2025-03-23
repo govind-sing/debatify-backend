@@ -46,6 +46,14 @@ app.get("/", (req, res) => {
   res.send("🚀 Debatify Backend is Running!");
 });
 
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
+}
+
 // Global Error Handler (including multer)
 app.use((err, req, res, next) => {
   console.error(err.stack);
