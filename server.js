@@ -42,6 +42,9 @@ mongoose.connect(process.env.MONGO_URI)
 app.get("/", (req, res) => {
   res.send("🚀 Debatify Backend is Running!");
 });
+app.get("/api/test", (req, res) => {
+  res.send("✅ API is working!");
+});
 
 
 
