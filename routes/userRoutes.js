@@ -199,17 +199,19 @@ router.put("/profile/update-bio", authenticateUser, async (req, res) => {
 
 
 // Update profile picture
+// Update profile picture
 router.put(
   "/profile/update-profile-picture",
   authenticateUser,
-  upload.single("profilePicture"),   // using your multer middleware
+  upload.single("profilePicture"),
   async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const cloudinaryResponse = await uploadToCloudinary(req.file.path);
+      // Upload buffer directly to Cloudinary
+      const cloudinaryResponse = await uploadToCloudinary(req.file.buffer);
 
       if (!cloudinaryResponse) {
         return res.status(500).json({ message: "Cloudinary upload failed" });
@@ -235,6 +237,7 @@ router.put(
     }
   }
 );
+
 
 
 // Search users
