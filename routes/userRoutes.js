@@ -5,9 +5,8 @@ const Debate = require("../models/Debate");
 const Blog = require("../models/Blog");
 const Discussion = require("../models/Discussion");
 const Notification = require("../models/Notification");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const { upload } = require("../middleware/multerMiddleware");
+const { uploadToCloudinary } = require("../utils/cloudinary");
 const { authenticateUser } = require("../middleware/authMiddleware");
 
 // Fetch current logged-in user profile
@@ -198,37 +197,45 @@ router.put("/profile/update-bio", authenticateUser, async (req, res) => {
   }
 });
 
-// Profile picture upload setup
-const profilePicturesDir = "uploads/profile-pictures";
-if (!fs.existsSync(profilePicturesDir)) fs.mkdirSync(profilePicturesDir, { recursive: true });
-
-const profilePictureStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, profilePicturesDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}${path.extname(file.originalname)}`),
-});
-
-const uploadProfilePicture = multer({
-  storage: profilePictureStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (req, file, cb) => {
-    const isImage = /jpeg|jpg|png/.test(file.mimetype);
-    isImage ? cb(null, true) : cb(new Error("Only images allowed (jpeg, jpg, png)"));
-  },
-});
 
 // Update profile picture
-router.put("/profile/update-profile-picture", authenticateUser, uploadProfilePicture.single("profilePicture"), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const user = await User.findByIdAndUpdate(req.user.userId, { profilePicture: `/uploads/profile-pictures/${req.file.filename}` }, { new: true });
-    if (!user) return res.status(404).json({ message: "User not found" });
+router.put(
+  "/profile/update-profile-picture",
+  authenticateUser,
+  upload.single("profilePicture"),   // using your multer middleware
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
 
-    res.json({ message: "Profile picture updated", profilePicture: user.profilePicture });
-  } catch (error) {
-    console.error("Profile picture update error:", error);
-    res.status(500).json({ message: "Server error" });
+      const cloudinaryResponse = await uploadToCloudinary(req.file.path);
+
+      if (!cloudinaryResponse) {
+        return res.status(500).json({ message: "Cloudinary upload failed" });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user.userId,
+        { profilePicture: cloudinaryResponse.secure_url },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        message: "Profile picture updated",
+        profilePicture: user.profilePicture,
+      });
+    } catch (error) {
+      console.error("Profile picture update error:", error);
+      res.status(500).json({ message: "Server error" });
+    }
   }
-});
+);
+
 
 // Search users
 router.get("/search", async (req, res) => {

@@ -2,31 +2,12 @@ const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const { upload } = require("../middleware/multerMiddleware");
+const { uploadToCloudinary } = require("../utils/cloudinary");
 const Blog = require("../models/Blog");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { authenticateUser } = require("../middleware/authMiddleware");
-
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, `${Date.now()}${path.extname(file.originalname)}`),
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|mp4|webm|mp3|wav|ogg|pdf/;
-    const isValid = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    isValid ? cb(null, true) : cb(new Error("Invalid file type"));
-  },
-});
 
 const formatViews = (views) => {
   if (views >= 1_000_000_000) return `${(views / 1_000_000_000).toFixed(1)}B`;
@@ -36,26 +17,43 @@ const formatViews = (views) => {
 };
 
 // Create a Blog
-router.post("/", authenticateUser, upload.array("files", 10), async (req, res) => {
-  try {
-    const { title, content, isPrivate, passcode } = req.body;
-    const fileUrls = req.files.map(file => `/uploads/${file.filename}`);
-    const blog = await new Blog({
-      title,
-      content,
-      fileUrls,
-      author: req.user.userId,
-      isPrivate: isPrivate === "true",
-      passcode: isPrivate === "true" ? passcode : null,
-    }).save();
+router.post(
+  "/",
+  authenticateUser,
+  upload.array("files", 10), // up to 10 files from frontend
+  async (req, res) => {
+    try {
+      const { title, content, isPrivate, passcode } = req.body;
 
-    const populatedBlog = await blog.populate("author", "username");
-    res.status(201).json(populatedBlog);
-  } catch (err) {
-    console.error("Create Blog Error:", err);
-    res.status(400).json({ message: err.message });
+      // Upload all files to Cloudinary
+      const fileUploads = await Promise.all(
+        req.files.map(file => uploadToCloudinary(file.path))
+      );
+
+      // Extract only the Cloudinary URLs
+      const fileUrls = fileUploads
+        .filter(upload => upload !== null)  // filter out failed uploads
+        .map(upload => upload.secure_url);
+
+      // Create blog entry
+      const blog = await new Blog({
+        title,
+        content,
+        fileUrls,
+        author: req.user.userId,
+        isPrivate: isPrivate === "true",
+        passcode: isPrivate === "true" ? passcode : null,
+      }).save();
+
+      const populatedBlog = await blog.populate("author", "username");
+      res.status(201).json(populatedBlog);
+    } catch (err) {
+      console.error("Create Blog Error:", err);
+      res.status(400).json({ message: err.message });
+    }
   }
-});
+);
+
 
 // Fetch All Blogs
 router.get("/", async (req, res) => {
