@@ -199,7 +199,6 @@ router.put("/profile/update-bio", authenticateUser, async (req, res) => {
 
 
 // Update profile picture
-// Update profile picture
 router.put(
   "/profile/update-profile-picture",
   authenticateUser,

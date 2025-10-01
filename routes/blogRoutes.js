@@ -25,14 +25,18 @@ router.post(
     try {
       const { title, content, isPrivate, passcode } = req.body;
 
-      // Upload all files to Cloudinary
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      // Upload all files to Cloudinary (from buffer instead of file path)
       const fileUploads = await Promise.all(
-        req.files.map(file => uploadToCloudinary(file.path))
+        req.files.map(file => uploadToCloudinary(file.buffer))
       );
 
       // Extract only the Cloudinary URLs
       const fileUrls = fileUploads
-        .filter(upload => upload !== null)  // filter out failed uploads
+        .filter(upload => upload !== null) // filter out failed uploads
         .map(upload => upload.secure_url);
 
       // Create blog entry
@@ -46,6 +50,7 @@ router.post(
       }).save();
 
       const populatedBlog = await blog.populate("author", "username");
+
       res.status(201).json(populatedBlog);
     } catch (err) {
       console.error("Create Blog Error:", err);
@@ -53,6 +58,7 @@ router.post(
     }
   }
 );
+
 
 
 // Fetch All Blogs
