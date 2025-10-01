@@ -13,7 +13,6 @@ app.use(express.json());
 
 // Serve static files
 app.use("/images", express.static(path.join(__dirname, "public/images")));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Route imports
 const authRoutes = require("./routes/authRoutes");
